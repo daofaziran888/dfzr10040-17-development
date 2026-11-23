@@ -1,6 +1,6 @@
-"""业务路由汇总：所有模块共用一套资源路由，由领域服务完成分派。"""
+"""业务路由汇总：增量归并专用路由先注册，固定子路径优先于通用资源路由。"""
 from __future__ import annotations
 
-from app.routers import resource
+from app.routers import delta_merge, resource
 
-ROUTERS = [resource]
+ROUTERS = [delta_merge, resource]

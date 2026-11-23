@@ -59,3 +59,73 @@ export async function loadOverview(): Promise<OverviewResult> {
   if (!response.ok) throw new Error('运营概览读取失败')
   return await response.json()
 }
+
+// ---- 增量归并：批量归并提交与续办 ----
+
+export type MergeRecord = Record<string, string | number>
+
+export type MergeApiResult = {
+  ok: boolean
+  message: string
+  idempotent_replay?: boolean
+  receipt?: Record<string, unknown>
+  batch?: Record<string, unknown>
+  rows?: Record<string, unknown>[]
+  [key: string]: unknown
+}
+
+export async function submitMergeBatch(payload: {
+  job_code: string
+  records: MergeRecord[]
+  key_field?: string
+  batch_id?: string
+  base_commit_id?: string
+}): Promise<MergeApiResult> {
+  const response = await request('/api/delta_merge/batches', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  return await response.json()
+}
+
+export async function resumeMergeBatch(
+  batchId: string,
+  keyField = 'id',
+): Promise<MergeApiResult> {
+  const response = await request(`/api/delta_merge/batches/${batchId}/resume`, {
+    method: 'POST',
+    body: JSON.stringify({ key_field: keyField }),
+  })
+  return await response.json()
+}
+
+export async function confirmMergeCommit(commitId: string): Promise<MergeApiResult> {
+  const response = await request(`/api/delta_merge/commits/${commitId}/confirm`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+  return await response.json()
+}
+
+export async function readMergeSnapshot(payload: {
+  job_code: string
+  commit_id?: string
+  partition_code?: string
+}): Promise<MergeApiResult> {
+  const response = await request('/api/delta_merge/snapshot/read', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  return await response.json()
+}
+
+export async function traceMergeBatch(batchId: string): Promise<MergeApiResult> {
+  const response = await request(`/api/delta_merge/batches/${batchId}/trace`)
+  return await response.json()
+}
+
+export async function listMergeBatches(jobCode = ''): Promise<MergeApiResult> {
+  const query = new URLSearchParams(jobCode ? { job_code: jobCode } : {}).toString()
+  const response = await request(`/api/delta_merge/batches?${query}`)
+  return await response.json()
+}

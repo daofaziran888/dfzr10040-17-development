@@ -81,5 +81,29 @@ npm run dev
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
 
+## 增量归并：批量归并提交与续办
+
+`app/merge_commit.py` 提供可复核的归并提交台账（`merge_commit_manager`），
+路由见 `app/routers/delta_merge.py`，固定子路径先于通用资源路由注册：
+
+| 接口 | 说明 |
+| --- | --- |
+| `POST /api/delta_merge/batches` | 多选键一次批量提交，逐条核对写入，返回归并提交回执 |
+| `POST /api/delta_merge/batches/{batch_id}/resume` | 续办写入中断批次，已写键跳过、未写键补齐 |
+| `GET /api/delta_merge/batches` / `.../{batch_id}/trace` | 批次台账与按输入批次追溯回执 |
+| `POST /api/delta_merge/commits/{commit_id}/confirm` | 确认提交，回执转入分区快照可读点 |
+| `GET /api/delta_merge/commits/{commit_id}` | 查询归并提交回执 |
+| `POST /api/delta_merge/snapshot/read` | 按回执（commit_id 或 partition_code）读实际生效快照行 |
+
+规则要点：
+
+- 不完整批次保持「写入中断」，不出完成回执，不能当作完成交付；续办后才出回执。
+- 同 `batch_id` 重送按幂等回放原回执，只计一次真实更新，历史回执仍可查对应输入。
+- `base_commit_id` 过期（重复写同一键）整批判「归并冲突」，不产生部分写入，高版本键继续有效。
+- 回执逐键说明变更（inserted/updated/unchanged 与版本变化）及快照可读时间；
+  确认时刻固化快照行，历史回执永远读到当时生效的版本。
+- 复核剧本：`backend/scripts/verify_merge_commit_scenario.py`，
+  测试：`backend/tests/test_merge_commit.py`。
+
 领域：数据工程
 子方向：数仓与数据湖
